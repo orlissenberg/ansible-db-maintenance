@@ -1,0 +1,40 @@
+---
+# tasks file for db-maintenance
+
+# Create a timestamp
+- shell: echo "$(date '+%Y%m%d_%H%M%S')_"
+  register: timestamp
+
+# Create temporary directory
+- file: path="{{ db_maintenance_backup_path }}" recurse=yes state=directory mode=0777
+
+# PostgreSQL
+- shell: pg_dump {{ item.name }} --format=tar > {{ db_maintenance_backup_path }}/pg_{{ timestamp.stdout }}{{ item.name }}.sql.tar
+  with_items: db_maintenance_postgres_dbs
+  sudo: yes
+  sudo_user: postgres
+
+# Fetch backups
+- fetch: src="{{ db_maintenance_backup_path }}/pg_{{ timestamp.stdout }}{{ item.name }}.sql.tar"
+  args:
+    dest: "{{ db_maintenance_backup_download_path }}"
+    flat: yes
+  with_items: db_maintenance_postgres_dbs
+  sudo: yes
+  sudo_user: postgres
+
+# MySQL
+
+# Dumps all databases to hostname.sql
+- mysql_db: state=dump name={{ item.name }} target="{{ db_maintenance_backup_path }}/mysql_{{ timestamp.stdout }}{{ item.name }}.sql.gz"
+  with_items: db_maintenance_mysql_dbs
+
+# Fetch backups
+- fetch: src="{{ db_maintenance_backup_path }}/mysql_{{ timestamp.stdout }}{{ item.name }}.sql.gz"
+  with_items: db_maintenance_mysql_dbs
+  args:
+    dest: "{{ db_maintenance_backup_download_path }}"
+    flat: yes
+
+# Remove temporary directory
+- file: path="{{ db_maintenance_backup_path }}" state=absent

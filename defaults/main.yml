@@ -1,0 +1,9 @@
+---
+# defaults file for db-maintenance
+
+db_maintenance_backup_path: /tmp/backups
+db_maintenance_backup_download_path: /tmp
+
+db_maintenance_postgres_dbs: []
+
+db_maintenance_mysql_dbs: []
