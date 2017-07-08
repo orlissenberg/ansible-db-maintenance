@@ -10,10 +10,6 @@
     - python-software-properties
     - python-pip
     - python-dev
-    - python-mysqldb
-
-- name: Create the flask database
-  mysql_db: name=flask_db state=present
 
 - name: Create a timestamp for the backup file names
   shell: echo "$(date '+%Y%m%d_%H%M%S')_"
