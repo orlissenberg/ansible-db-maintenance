@@ -1,40 +1,56 @@
 ---
 # tasks file for db-maintenance
 
-# Create a timestamp
-- shell: echo "$(date '+%Y%m%d_%H%M%S')_"
+- name: Install dependencies
+  apt: name="{{ item }}"
+  args:
+    state: present
+    update_cache: yes
+  with_items:
+    - python-software-properties
+    - python-pip
+    - python-dev
+    - python-mysqldb
+
+- name: Create the flask database
+  mysql_db: name=flask_db state=present
+
+- name: Create a timestamp for the backup file names
+  shell: echo "$(date '+%Y%m%d_%H%M%S')_"
   register: timestamp
 
-# Create temporary directory
-- file: path="{{ db_maintenance_backup_path }}" recurse=yes state=directory mode=0777
+- name: Create temporary directory
+  file: path="{{ db_maintenance_backup_path }}" recurse=yes state=directory mode=0777
 
 # PostgreSQL
-- shell: pg_dump {{ item.name }} --format=tar > {{ db_maintenance_backup_path }}/pg_{{ timestamp.stdout }}{{ item.name }}.sql.tar
-  with_items: db_maintenance_postgres_dbs
-  sudo: yes
-  sudo_user: postgres
+- name: PostgreSQL backups
+  shell: pg_dump {{ item.name }} --format=tar > {{ db_maintenance_backup_path }}/pg_{{ timestamp.stdout }}{{ item.name }}.sql.tar
+  with_items: "{{ db_maintenance_postgres_dbs }}"
+  become: yes
+  become_user: postgres
 
 # Fetch backups
-- fetch: src="{{ db_maintenance_backup_path }}/pg_{{ timestamp.stdout }}{{ item.name }}.sql.tar"
+- name: Download PostgreSQL backups
+  fetch: src="{{ db_maintenance_backup_path }}/pg_{{ timestamp.stdout }}{{ item.name }}.sql.tar"
   args:
     dest: "{{ db_maintenance_backup_download_path }}"
     flat: yes
-  with_items: db_maintenance_postgres_dbs
-  sudo: yes
-  sudo_user: postgres
+  with_items: "{{ db_maintenance_postgres_dbs }}"
+  become: yes
+  become_user: postgres
 
 # MySQL
-
-# Dumps all databases to hostname.sql
-- mysql_db: state=dump name={{ item.name }} target="{{ db_maintenance_backup_path }}/mysql_{{ timestamp.stdout }}{{ item.name }}.sql.gz"
-  with_items: db_maintenance_mysql_dbs
+- name: Backup MySQL databases
+  mysql_db: state=dump name={{ item.name }} target="{{ db_maintenance_backup_path }}/mysql_{{ timestamp.stdout }}{{ item.name }}.sql.gz"
+  with_items: "{{ db_maintenance_mysql_dbs }}"
 
 # Fetch backups
-- fetch: src="{{ db_maintenance_backup_path }}/mysql_{{ timestamp.stdout }}{{ item.name }}.sql.gz"
-  with_items: db_maintenance_mysql_dbs
+- name: Download MySQL databases
+  fetch: src="{{ db_maintenance_backup_path }}/mysql_{{ timestamp.stdout }}{{ item.name }}.sql.gz"
+  with_items: "{{ db_maintenance_mysql_dbs }}"
   args:
     dest: "{{ db_maintenance_backup_download_path }}"
     flat: yes
 
-# Remove temporary directory
-- file: path="{{ db_maintenance_backup_path }}" state=absent
+- name: Remove temporary directory
+  file: path="{{ db_maintenance_backup_path }}" state=absent
